@@ -1,0 +1,7 @@
+spring:
+  application:
+    name : stock-collection-service
+  r2dbc:
+    username : admin
+    password : password
+    url : r2dbc:mysql://mysql:3306/webflux?useSSL=false&allowPublicKeyRetrieval=true

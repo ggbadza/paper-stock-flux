@@ -1,0 +1,8 @@
+{
+"mcpServers": {
+  "intellij": {
+    "command": "npx",
+     "args": ["-y","@jetbrains/mcp-proxy", "--port", "63343"]
+  }
+}
+}
