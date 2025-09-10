@@ -1,6 +1,9 @@
 spring:
   application:
     name : stock-collection-service
+  sql:
+    init:
+      mode: always
   r2dbc:
     username : admin
     password : password
@@ -8,4 +11,6 @@ spring:
 
 api:
   websocket:
-    kospi-url: "wss://external-api.com/ws/{ticker}"
+    kospi-trade-url: "ws://ops.koreainvestment.com:21000/tryitout/H0STASP0"
+    kospi-order-book-url: "ws://ops.koreainvestment.com:21000/tryitout/H0STCNT0"
+    kospi-approval_key: "test"

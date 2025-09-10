@@ -7,6 +7,8 @@ data class ApiProperties(
     val websocket: WebsocketProperties
 ) {
     data class WebsocketProperties(
-        val kospiUrl: String
+        val kospiTradeUrl: String,
+        val kospiOrderBookUrl: String,
+        val kospiApprovalKey: String
     )
 }

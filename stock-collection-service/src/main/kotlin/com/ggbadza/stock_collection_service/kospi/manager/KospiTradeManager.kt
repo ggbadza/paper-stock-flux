@@ -5,6 +5,7 @@ import com.ggbadza.stock_collection_service.config.ApiProperties
 import com.ggbadza.stock_collection_service.kospi.repository.TrackedKospiRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketMessage
 import org.springframework.web.reactive.socket.WebSocketSession
@@ -21,7 +22,7 @@ import java.time.Duration
 private val logger = KotlinLogging.logger {}
 
 @Component
-class KospiConnectionManager(
+class KospiTradeManager(
     private val trackedKospiRepository: TrackedKospiRepository, // R2DBC 리포지토리
     private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
     private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
@@ -32,12 +33,20 @@ class KospiConnectionManager(
     override fun connect(): Flux<Void> {
         return trackedKospiRepository.findAllByActiveIsTrue()
             .flatMap { stock -> // 각 주식에 대해 WebSocket 연결 실행
-                val uri = URI.create(apiProperties.websocket.kospiUrl)
+                val uri = URI.create(apiProperties.websocket.kospiTradeUrl)
                 logger.info { "${stock.name}(${stock.ticker})에 대한 웹소켓 연결을 시작합니다. URI: $uri" }
+
+                // 웹소켓 헤더 설정
+                val headers = HttpHeaders()
+                headers.add("approval_key", apiProperties.websocket.kospiApprovalKey)
+                headers.add("custtype", "P")
+                headers.add("tr_type", "1")
+                headers.add("content-type", "utf-8")
+
 
                 val handler = createWebSocketHandler(stock.ticker) // 메시지 핸들러 생성
 
-                webSocketClient.execute(uri, handler)
+                webSocketClient.execute(uri, headers, handler)
                     .doOnError { error -> logger.error(error) { "${stock.ticker} 종목의 웹소켓 연결에서 오류가 발생했습니다." } }
                     .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5))) // 재연결 시도
             }
@@ -51,8 +60,8 @@ class KospiConnectionManager(
                     // 데이터 정제 로직
                     val processedData = processStockData(payload)
 
-                    // 정제된 데이터를 Kafka로 전송 "stock-data"
-                    val record = ProducerRecord("stock-data", ticker, processedData)
+                    // 정제된 데이터를 Kafka로 전송 "kospi-trade" 토픽
+                    val record = ProducerRecord("kospi-trade", ticker, processedData)
                     val senderRecord = SenderRecord.create(record, null) // SenderRecord로 감싸기
 
                     kafkaSender.send(Mono.just(senderRecord)) // Mono/Flux 형태로 전송

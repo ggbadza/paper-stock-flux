@@ -1,5 +1,6 @@
 package com.ggbadza.stock_collection_service.kospi.entity
 
+import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.Id
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.relational.core.mapping.Table
@@ -13,6 +14,8 @@ data class TrackedKospiEntity (
     val name: String,
 
     var isActive: Boolean = true,
+
+    var createdDate: CreatedDate,
 
     var modifiedDate: LastModifiedDate
 )
