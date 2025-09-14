@@ -1,20 +1,20 @@
 version: '3.8'
 
 services:
-  db:
+  collection-db:
     image: mysql:8.0
-    container_name: mysql-db
+    container_name: stock-collection-service-db
     ports:
-      - "3306:3306"
+      - "23306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: webflux
       MYSQL_USER: admin
       MYSQL_PASSWORD: password
     volumes:
-      - db-data:/var/lib/mysql
+      - collection-db-data:/var/lib/mysql
 
-  app:
+  collection-app:
     build:
       context: ./stock-collection-service
       dockerfile: Dockerfile
@@ -22,7 +22,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+        collection-db:
+            condition: service_started 
 
 volumes:
-  db-data:
+  collection-db-data:

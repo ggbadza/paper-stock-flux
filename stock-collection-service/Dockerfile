@@ -5,7 +5,7 @@ COPY . .
 RUN gradle build -x test
 
 # Package stage
-FROM openjdk:21-jre-slim
+FROM eclipse-temurin:21
 WORKDIR /app
 COPY --from=build /home/gradle/src/build/libs/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
