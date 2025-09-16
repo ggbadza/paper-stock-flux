@@ -14,7 +14,7 @@ private val logger = KotlinLogging.logger {}
  */
 @Component
 class StockCollectionInitiator(
-    // Spring이 StockMarketConnector를 구현하는 모든 @Component Bean을 찾아 리스트로 주입합니다.
+    // StockMarketConnector을 구현하는 모든 @Component Bean을 찾아 리스트로 주입
     private val connectors: List<StockMarketConnector>
 ) : ApplicationRunner {
 

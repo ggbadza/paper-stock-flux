@@ -7,7 +7,7 @@ import reactor.core.publisher.Mono
 
 interface TrackedKospiRepository : R2dbcRepository<TrackedKospiEntity, String>  {
 
-    fun findTrackedKospiEntityByStockCode(stockCode: String): Mono<TrackedKospiEntity?>
+    fun findTrackedKospiEntityByTicker(stockCode: String): Mono<TrackedKospiEntity?>
 
-    fun findAllByActiveIsTrue(): Flux<TrackedKospiEntity>
+    fun findAllByIsActiveIsTrue(): Flux<TrackedKospiEntity>
 }

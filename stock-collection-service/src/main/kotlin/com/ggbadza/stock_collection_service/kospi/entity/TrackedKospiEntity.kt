@@ -4,6 +4,7 @@ import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.Id
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.relational.core.mapping.Table
+import java.time.LocalDateTime
 
 @Table("tracked_stocks")
 data class TrackedKospiEntity (
@@ -11,11 +12,13 @@ data class TrackedKospiEntity (
     @Id
     val ticker: String,
 
-    val name: String,
+    val stockName: String,
 
     var isActive: Boolean = true,
 
-    var createdDate: CreatedDate,
+    @CreatedDate
+    val createdDate: LocalDateTime? = null,
 
-    var modifiedDate: LastModifiedDate
+    @LastModifiedDate
+    var modifiedDate: LocalDateTime? = null
 )

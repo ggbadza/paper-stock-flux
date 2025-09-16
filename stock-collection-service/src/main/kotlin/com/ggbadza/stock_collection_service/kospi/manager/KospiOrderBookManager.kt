@@ -20,32 +20,38 @@ import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * 실시간 호가 데이터를 웹소켓을 이용해 받아오는 Bean
+ */
 @Component
 class KospiOrderBookManager(
     private val trackedKospiRepository: TrackedKospiRepository,
     private val webSocketClient: WebSocketClient,
-    private val kafkaSender: KafkaSender<String, String>,
-    private val apiProperties: ApiProperties
+//    private val kafkaSender: KafkaSender<String, String>,
+    private val apiProperties: ApiProperties,
+    private val apiKeyManager: KospiApiKeyManager
 ) : StockMarketConnector {
 
     override fun connect(): Flux<Void> {
-        return trackedKospiRepository.findAllByActiveIsTrue()
+        return trackedKospiRepository.findAllByIsActiveIsTrue()
             .flatMap { stock ->
-                val uri = URI.create(apiProperties.websocket.kospiOrderBookUrl)
-                logger.info { "KOSPI 호가(${stock.ticker})에 대한 웹소켓 연결을 시작합니다. URI: $uri" }
+                apiKeyManager.getApprovalKey().flatMap { approvalKey ->
+                    val uri = URI.create(apiProperties.websocket.kospiOrderBookUrl)
+                    logger.info { "KOSPI 호가(${stock.ticker})에 대한 웹소켓 연결을 시작합니다. URI: $uri" }
 
-                // 웹소켓 헤더 설정
-                val headers = HttpHeaders()
-                headers.add("approval_key", apiProperties.websocket.kospiApprovalKey)
-                headers.add("custtype", "P")
-                headers.add("tr_type", "2") // "1"은 실시간 체결가, "2"는 실시간 호가
-                headers.add("content-type", "utf-8")
+                    // 웹소켓 헤더 설정
+                    val headers = HttpHeaders()
+                    headers.add("approval_key", approvalKey)
+                    headers.add("custtype", "P") // "B": 법인, "P": 개인
+                    headers.add("tr_type", "2") // "1"은 실시간 체결가, "2"는 실시간 호가
+                    headers.add("content-type", "utf-8")
 
-                val handler = createWebSocketHandler(stock.ticker)
+                    val handler = createWebSocketHandler(stock.ticker)
 
-                webSocketClient.execute(uri, headers, handler)
-                    .doOnError { error -> logger.error(error) { "${stock.ticker} 종목의 호가 웹소켓 연결에서 오류가 발생했습니다." } }
-                    .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
+                    webSocketClient.execute(uri, headers, handler)
+                        .doOnError { error -> logger.error(error) { "${stock.ticker} 종목의 호가 웹소켓 연결에서 오류가 발생했습니다." } }
+                        .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
+                }
             }
     }
 
@@ -53,16 +59,16 @@ class KospiOrderBookManager(
         return { session ->
             session.receive()
                 .map(WebSocketMessage::getPayloadAsText)
-                .flatMap { payload ->
+                .map { payload ->
                     val processedData = processOrderBookData(payload)
-
+                    logger.info {processedData}
                     // 정제된 데이터를 Kafka "kospi-order-book" 토픽으로 전송
-                    val record = ProducerRecord("kospi-order-book", ticker, processedData)
-                    val senderRecord = SenderRecord.create(record, null)
-
-                    kafkaSender.send(Mono.just(senderRecord))
-                        .doOnNext { logger.info { "$ticker 종목 호가 데이터를 카프카로 전송했습니다." } }
-                        .then()
+//                    val record = ProducerRecord("kospi-order-book", ticker, processedData)
+//                    val senderRecord = SenderRecord.create(record, null)
+//
+//                    kafkaSender.send(Mono.just(senderRecord))
+//                        .doOnNext { logger.info { "$ticker 종목 호가 데이터를 카프카로 전송했습니다." } }
+//                        .then()
                 }
                 .then()
         }
