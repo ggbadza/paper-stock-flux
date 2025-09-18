@@ -1,10 +1,9 @@
-package com.ggbadza.stock_collection_service.kospi.manager
+package com.ggbadza.stock_collection_service.nasdaq.manager
 
 import com.ggbadza.stock_collection_service.config.ApiProperties
 import com.ggbadza.stock_collection_service.kospi.dto.ApprovalRequest
 import com.ggbadza.stock_collection_service.kospi.dto.ApprovalResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -12,10 +11,12 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono
 import java.time.Duration
 
+
+
 private val logger = KotlinLogging.logger {}
 
 @Service
-class KospiApiKeyManager(
+class NasdaqApiKeyManager(
     private val apiProperties: ApiProperties,
     private val webClient: WebClient
 ) {
@@ -35,7 +36,7 @@ class KospiApiKeyManager(
         )
 
         cachedApiKey = webClient.post()
-            .uri(apiProperties.websocket.kospi.keyUrl)
+            .uri(apiProperties.websocket.nasdaq.keyUrl)
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(request)
             .retrieve()
@@ -45,14 +46,14 @@ class KospiApiKeyManager(
                 when (error) {
                     is WebClientResponseException -> {
                         logger.error(
-                            "KOSPI API 키 요청 실패. Status: {}, Response: {}",
+                            "Nasdaq API 키 요청 실패. Status: {}, Response: {}",
                             error.statusCode,
                             error.responseBodyAsString,
                             error
                         )
                     }
                     else -> {
-                        logger.error("KOSPI API 키 요청 중 알 수 없는 오류 발생", error)
+                        logger.error("Nasdaq API 키 요청 중 알 수 없는 오류 발생", error)
                     }
                 }
             }

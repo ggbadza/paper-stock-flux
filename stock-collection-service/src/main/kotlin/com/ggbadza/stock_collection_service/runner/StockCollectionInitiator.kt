@@ -27,6 +27,12 @@ class StockCollectionInitiator(
         logger.info { "총 ${connectors.size}개의 주식 시장에 대한 연결을 시작합니다." }
 
         connectors.forEach { connector ->
+            try {
+                Thread.sleep(1000)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                logger.error(e) { "Thread sleep interrupted" }
+            }
             val connectorName = connector.javaClass.simpleName
             logger.info { "[$connectorName] 데이터 수집을 시작합니다." }
 

@@ -1,10 +1,10 @@
 package com.ggbadza.stock_collection_service.kospi.manager
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
 import com.ggbadza.stock_collection_service.config.ApiProperties
 import com.ggbadza.stock_collection_service.kospi.repository.TrackedKospiRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.apache.kafka.clients.producer.ProducerRecord
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketMessage
@@ -12,8 +12,6 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.kafka.sender.KafkaSender
-import reactor.kafka.sender.SenderRecord
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
@@ -27,50 +25,90 @@ private val logger = KotlinLogging.logger {}
 class KospiOrderBookManager(
     private val trackedKospiRepository: TrackedKospiRepository,
     private val webSocketClient: WebSocketClient,
-//    private val kafkaSender: KafkaSender<String, String>,
     private val apiProperties: ApiProperties,
     private val apiKeyManager: KospiApiKeyManager
 ) : StockMarketConnector {
 
-    override fun connect(): Flux<Void> {
-        return trackedKospiRepository.findAllByIsActiveIsTrue()
-            .flatMap { stock ->
-                apiKeyManager.getApprovalKey().flatMap { approvalKey ->
-                    val uri = URI.create(apiProperties.websocket.kospiOrderBookUrl)
-                    logger.info { "KOSPI 호가(${stock.ticker})에 대한 웹소켓 연결을 시작합니다. URI: $uri" }
+    val kospiProperties = apiProperties.websocket.kospi
 
-                    // 웹소켓 헤더 설정
+    override fun connect(): Mono<Void> {
+        return trackedKospiRepository.findAllByIsActiveIsTrue()
+            .map { it.ticker }
+            .collectList()
+            .flatMap { tickers ->
+                if (tickers.isEmpty()) {
+                    logger.warn { "추적할 활성 KOSPI 종목이 없습니다." }
+                    return@flatMap Mono.empty<Void>()
+                }
+
+                apiKeyManager.getApprovalKey().flatMap { approvalKey ->
+                    val uri = URI.create(kospiProperties.websocketUrl + kospiProperties.orderBookId)
+                    logger.info { "KOSPI 실시간 호가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
+
                     val headers = HttpHeaders()
                     headers.add("approval_key", approvalKey)
-                    headers.add("custtype", "P") // "B": 법인, "P": 개인
-                    headers.add("tr_type", "2") // "1"은 실시간 체결가, "2"는 실시간 호가
+                    headers.add("custtype", "P")
+                    headers.add("tr_type", "1")
                     headers.add("content-type", "utf-8")
 
-                    val handler = createWebSocketHandler(stock.ticker)
+                    // ✅ 변경점 2: 핸들러에 티커 리스트 전체를 전달
+                    val handler = createWebSocketHandler(approvalKey, tickers)
 
                     webSocketClient.execute(uri, headers, handler)
-                        .doOnError { error -> logger.error(error) { "${stock.ticker} 종목의 호가 웹소켓 연결에서 오류가 발생했습니다." } }
+                        .doOnError { error -> logger.error(error) { "KOSPI 웹소켓 연결에서 오류가 발생했습니다." } }
                         .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
                 }
             }
     }
 
-    private fun createWebSocketHandler(ticker: String): (WebSocketSession) -> Mono<Void> {
+
+    private fun createWebSocketHandler(approvalKey: String, tickers: List<String>): (WebSocketSession) -> Mono<Void> {
         return { session ->
-            session.receive()
-                .map(WebSocketMessage::getPayloadAsText)
-                .map { payload ->
-                    val processedData = processOrderBookData(payload)
-                    logger.info {processedData}
-                    // 정제된 데이터를 Kafka "kospi-order-book" 토픽으로 전송
-//                    val record = ProducerRecord("kospi-order-book", ticker, processedData)
-//                    val senderRecord = SenderRecord.create(record, null)
-//
-//                    kafkaSender.send(Mono.just(senderRecord))
-//                        .doOnNext { logger.info { "$ticker 종목 호가 데이터를 카프카로 전송했습니다." } }
-//                        .then()
+            val subscriptionMessages = Flux.fromIterable(tickers)
+                .map { ticker ->
+                    // 헤더 및 바디 설정
+                    val requestBody = """
+                                    {
+                                        "header": {
+                                            "approval_key": "$approvalKey",
+                                            "custtype": "P",
+                                            "tr_type": "1",
+                                            "content-type": "utf-8"
+                                        },
+                                        "body": {
+                                            "input": {
+                                                "tr_id": "${kospiProperties.orderBookId}",
+                                                "tr_key": "$ticker"
+                                            }
+                                        }
+                                    }
+                                    """.trimIndent()
+                    session.textMessage(requestBody)
                 }
-                .then()
+
+            // 여러 종목에 대해 순차적 구독 요청
+            val sendRequests = session.send(subscriptionMessages)
+                .doOnNext { logger.info { "${tickers.size}개 종목에 대한 호가 구독 요청을 모두 전송했습니다." } }
+
+
+            // 서버로부터 오는 모든 실시간 데이터를 수신
+            val receiveMessages = session.receive()
+                .map(WebSocketMessage::getPayloadAsText)
+                .flatMap { payload ->
+                    // PINGPONG 데이터 처리 로직
+                    if (payload.contains("PINGPONG")) {
+                        logger.debug { "PINGPONG 메시지 수신" }
+                        return@flatMap Mono.empty<Void>()
+                    }
+
+                    val processedData = processOrderBookData(payload)
+                    logger.info { "수신 데이터: $processedData" }
+
+                    // todo Kafka 전송 로직...
+                    Mono.empty<Void>()
+                }
+
+            sendRequests.thenMany(receiveMessages).then()
         }
     }
 

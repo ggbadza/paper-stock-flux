@@ -1,4 +1,4 @@
-package com.ggbadza.stock_collection_service.kospi.entity
+package com.ggbadza.stock_collection_service.nasdaq.entity
 
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.Id
@@ -6,8 +6,8 @@ import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDateTime
 
-@Table("tracked_kospi_stocks")
-data class TrackedKospiEntity (
+@Table("tracked_nasdaq_stocks")
+data class TrackedNasdaqEntity (
 
     @Id
     val ticker: String,

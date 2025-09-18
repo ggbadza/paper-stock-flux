@@ -14,8 +14,18 @@ spring:
 
 api:
   websocket:
-    kospi-key-url: "https://openapi.koreainvestment.com:9443/oauth2/Approval"
-    kospi-trade-url: "ws://ops.koreainvestment.com:21000/tryitout/H0STASP0"
-    kospi-order-book-url: "ws://ops.koreainvestment.com:21000/tryitout/H0STCNT0"
-    kospi-app-key: "test"
-    kospi-app-secret: "test"
+    kospi:
+      key-url: "https://openapi.koreainvestment.com:9443/oauth2/Approval"
+      websocket-url: "ws://ops.koreainvestment.com:21000/tryitout/"
+      trade-id: "H0STASP0"
+      order-book-id: "H0STCNT0"
+      app-key: "test"
+      app-secret: "test"
+    nasdaq:
+      key-url: "https://openapi.koreainvestment.com:9443/oauth2/Approval"
+      websocket-url: "ws://ops.koreainvestment.com:21000/tryitout/"
+      trade-id: "HDFSCNT0"
+      order-book-id: "HDFSASP0"
+      app-key: "test"
+      app-secret: "test"
+

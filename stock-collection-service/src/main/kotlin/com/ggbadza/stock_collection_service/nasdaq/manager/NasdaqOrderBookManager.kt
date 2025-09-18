@@ -1,10 +1,11 @@
-package com.ggbadza.stock_collection_service.kospi.manager
+package com.ggbadza.stock_collection_service.nasdaq.manager
 
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
 import com.ggbadza.stock_collection_service.config.ApiProperties
+import com.ggbadza.stock_collection_service.kospi.manager.KospiApiKeyManager
 import com.ggbadza.stock_collection_service.kospi.repository.TrackedKospiRepository
+import com.ggbadza.stock_collection_service.nasdaq.repository.TrackedNasdaqRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.apache.kafka.clients.producer.ProducerRecord
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketMessage
@@ -12,8 +13,6 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.kafka.sender.KafkaSender
-import reactor.kafka.sender.SenderRecord
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
@@ -22,32 +21,32 @@ import java.time.Duration
 private val logger = KotlinLogging.logger {}
 
 /**
- * 실시간 체결가 데이터를 웹소켓을 이용해 받아오는 Bean
+ * 실시간 호가 데이터를 웹소켓을 이용해 받아오는 Bean
  */
 @Component
-class KospiTradeManager(
-    private val trackedKospiRepository: TrackedKospiRepository, // R2DBC 리포지토리
-    private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
-//    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
-    private val apiProperties: ApiProperties, // API 설정 클래스
-    private val apiKeyManager: KospiApiKeyManager
+class NasdaqOrderBookManager(
+    private val trackedNasdaqRepository: TrackedNasdaqRepository,
+    private val webSocketClient: WebSocketClient,
+//    private val kafkaSender: KafkaSender<String, String>,
+    private val apiProperties: ApiProperties,
+    private val apiKeyManager: NasdaqApiKeyManager
 ) : StockMarketConnector {
 
-    val kospiProperties = apiProperties.websocket.kospi
+    val nasdaqProperties = apiProperties.websocket.nasdaq
 
     override fun connect(): Mono<Void> {
-        return trackedKospiRepository.findAllByIsActiveIsTrue()
+        return trackedNasdaqRepository.findAllByIsActiveIsTrue()
             .map { it.ticker }
             .collectList()
             .flatMap { tickers ->
                 if (tickers.isEmpty()) {
-                    logger.warn { "추적할 활성 KOSPI 종목이 없습니다." }
+                    logger.warn { "추적할 활성 NASDAQ 종목이 없습니다." }
                     return@flatMap Mono.empty<Void>()
                 }
 
                 apiKeyManager.getApprovalKey().flatMap { approvalKey ->
-                    val uri = URI.create(kospiProperties.websocketUrl + kospiProperties.tradeId)
-                    logger.info { "KOSPI 실시간 체결가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
+                    val uri = URI.create(nasdaqProperties.websocketUrl + nasdaqProperties.orderBookId)
+                    logger.info { "NASDAQ 실시간 호가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
 
                     val headers = HttpHeaders()
                     headers.add("approval_key", approvalKey)
@@ -59,12 +58,11 @@ class KospiTradeManager(
                     val handler = createWebSocketHandler(approvalKey, tickers)
 
                     webSocketClient.execute(uri, headers, handler)
-                        .doOnError { error -> logger.error(error) { "KOSPI 웹소켓 연결에서 오류가 발생했습니다." } }
+                        .doOnError { error -> logger.error(error) { "NASDAQ 웹소켓 연결에서 오류가 발생했습니다." } }
                         .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
                 }
             }
-        }
-
+    }
 
 
     private fun createWebSocketHandler(approvalKey: String, tickers: List<String>): (WebSocketSession) -> Mono<Void> {
@@ -82,8 +80,8 @@ class KospiTradeManager(
                                         },
                                         "body": {
                                             "input": {
-                                                "tr_id": "${kospiProperties.tradeId}",
-                                                "tr_key": "$ticker"
+                                                "tr_id": "${nasdaqProperties.orderBookId}",
+                                                "tr_key": "DNAS$ticker"
                                             }
                                         }
                                     }
@@ -93,7 +91,7 @@ class KospiTradeManager(
 
             // 여러 종목에 대해 순차적 구독 요청
             val sendRequests = session.send(subscriptionMessages)
-                .doOnNext { logger.info { "${tickers.size}개 종목에 대한 실시간 체결가 구독 요청을 모두 전송했습니다." } }
+                .doOnNext { logger.info { "${tickers.size}개 종목에 대한 호가 구독 요청을 모두 전송했습니다." } }
 
 
             // 서버로부터 오는 모든 실시간 데이터를 수신
@@ -106,7 +104,7 @@ class KospiTradeManager(
                         return@flatMap Mono.empty<Void>()
                     }
 
-                    val processedData = processStockData(payload)
+                    val processedData = processOrderBookData(payload)
                     logger.info { "수신 데이터: $processedData" }
 
                     // todo Kafka 전송 로직...
@@ -117,9 +115,8 @@ class KospiTradeManager(
         }
     }
 
-    private fun processStockData(payload: String): String {
-        // todo JSON을 객체로 변환하는 로직
-        return "PROCESSED_TRADE_DATA: $payload"
+    private fun processOrderBookData(payload: String): String {
+        // todo 호가 데이터에 맞는 JSON 객체 변환 로직 구현
+        return "PROCESSED_ORDER_BOOK: $payload"
     }
-
 }
