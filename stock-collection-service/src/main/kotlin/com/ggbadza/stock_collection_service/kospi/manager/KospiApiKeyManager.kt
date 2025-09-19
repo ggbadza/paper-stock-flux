@@ -23,9 +23,7 @@ class KospiApiKeyManager(
     private var cachedApiKey: Mono<String> = Mono.empty()
 
     fun getApprovalKey(): Mono<String> {
-        return cachedApiKey
-            // 캐시 미존재시에 가져옴
-            .switchIfEmpty(fetchAndCacheApiKey())
+        return fetchAndCacheApiKey()
     }
 
     private fun fetchAndCacheApiKey(): Mono<String> {
@@ -41,6 +39,7 @@ class KospiApiKeyManager(
             .retrieve()
             .bodyToMono(ApprovalResponse::class.java)
             .map { it.approvalKey }
+            .doOnSuccess { msg -> logger.info{ "Kospi API 키 요청 성공 $msg"} }
             .doOnError { error ->
                 when (error) {
                     is WebClientResponseException -> {

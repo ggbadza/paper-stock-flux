@@ -5,6 +5,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
@@ -26,22 +29,19 @@ class StockCollectionInitiator(
 
         logger.info { "총 ${connectors.size}개의 주식 시장에 대한 연결을 시작합니다." }
 
-        connectors.forEach { connector ->
-            try {
-                Thread.sleep(1000)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                logger.error(e) { "Thread sleep interrupted" }
+        Flux.fromIterable(connectors)
+            // 순차적 실행
+            .concatMap { connector ->
+                val connectorName = connector.javaClass.simpleName
+                logger.info { "[$connectorName] 데이터 수집을 시작합니다." }
+                connector.connect()
+                    .doOnError { error -> logger.error(error) { "[$connectorName] 데이터 수집 중 심각한 오류가 발생했습니다." } }
+                    .onErrorComplete() // 오류가 발생해도 다음 커넥터 실행
+                    .then(Mono.delay(Duration.ofSeconds(1))) // 작업이 끝나고 1초 대기
             }
-            val connectorName = connector.javaClass.simpleName
-            logger.info { "[$connectorName] 데이터 수집을 시작합니다." }
-
-            // 각 Connector의 connect 메서드를 호출하여 데이터 수집 스트림을 활성화합니다.
-            connector.connect()
-                .subscribe(
-                    null, // onNext: Flux<Void>이므로 별도 처리 없음
-                    { error -> logger.error(error) { "[$connectorName] 데이터 수집 중 심각한 오류가 발생했습니다." } }
-                )
-        }
+            .doOnComplete {
+                logger.info { "모든 주식 시장에 대한 연결 시도가 완료되었습니다." }
+            }
+            .subscribe()
     }
 }

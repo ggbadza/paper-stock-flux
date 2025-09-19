@@ -1,10 +1,13 @@
 package com.ggbadza.stock_collection_service.kospi.manager
 
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
+import com.ggbadza.stock_collection_service.common.SubscriptionHandler
 import com.ggbadza.stock_collection_service.config.ApiProperties
+import com.ggbadza.stock_collection_service.kospi.handler.KospiOrderBookSubsHandler
+import com.ggbadza.stock_collection_service.kospi.handler.KospiTradeSubsHandler
 import com.ggbadza.stock_collection_service.kospi.repository.TrackedKospiRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.apache.kafka.clients.producer.ProducerRecord
+import jakarta.annotation.PostConstruct
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketMessage
@@ -12,114 +15,107 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.kafka.sender.KafkaSender
-import reactor.kafka.sender.SenderRecord
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
-
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = KotlinLogging.logger {}
 
 /**
- * 실시간 체결가 데이터를 웹소켓을 이용해 받아오는 Bean
+ * KOSPI 실시간 데이터 수집 흐름을 총괄하는 Bean
  */
 @Component
 class KospiTradeManager(
-    private val trackedKospiRepository: TrackedKospiRepository, // R2DBC 리포지토리
-    private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
-//    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
-    private val apiProperties: ApiProperties, // API 설정 클래스
-    private val apiKeyManager: KospiApiKeyManager
+    private val trackedKospiRepository: TrackedKospiRepository,
+    private val webSocketClient: WebSocketClient,
+    private val apiProperties: ApiProperties,
+    private val apiKeyManager: KospiApiKeyManager,
+    private val orderBookSubsHandler: KospiOrderBookSubsHandler,
+    private val kospiTradeSubsHandler: KospiTradeSubsHandler
 ) : StockMarketConnector {
 
-    val kospiProperties = apiProperties.websocket.kospi
+    // --- 멤버 변수 및 초기화 ---
+    private val kospiProperties = apiProperties.websocket.kospi
 
+    private val handlers: List<SubscriptionHandler> = listOf(kospiTradeSubsHandler, orderBookSubsHandler)
+    private val handlerMap: Map<String, SubscriptionHandler> = handlers.associateBy { it.getTrId() }
+
+
+    // --- 웹소켓 연결 로직 ---
     override fun connect(): Mono<Void> {
-        return trackedKospiRepository.findAllByIsActiveIsTrue()
-            .map { it.ticker }
-            .collectList()
-            .flatMap { tickers ->
-                if (tickers.isEmpty()) {
-                    logger.warn { "추적할 활성 KOSPI 종목이 없습니다." }
-                    return@flatMap Mono.empty<Void>()
-                }
+        return Mono.create { sink ->
+            val alreadySignaled = AtomicBoolean(false)
+            sink.onDispose { alreadySignaled.set(true) }
 
-                apiKeyManager.getApprovalKey().flatMap { approvalKey ->
-                    val uri = URI.create(kospiProperties.websocketUrl + kospiProperties.tradeId)
-                    logger.info { "KOSPI 실시간 체결가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
-
-                    val headers = HttpHeaders()
-                    headers.add("approval_key", approvalKey)
-                    headers.add("custtype", "P")
-                    headers.add("tr_type", "1")
-                    headers.add("content-type", "utf-8")
-
-                    // ✅ 변경점 2: 핸들러에 티커 리스트 전체를 전달
-                    val handler = createWebSocketHandler(approvalKey, tickers)
-
-                    webSocketClient.execute(uri, headers, handler)
-                        .doOnError { error -> logger.error(error) { "KOSPI 웹소켓 연결에서 오류가 발생했습니다." } }
-                        .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
-                }
-            }
-        }
-
-
-
-    private fun createWebSocketHandler(approvalKey: String, tickers: List<String>): (WebSocketSession) -> Mono<Void> {
-        return { session ->
-            val subscriptionMessages = Flux.fromIterable(tickers)
-                .map { ticker ->
-                    // 헤더 및 바디 설정
-                    val requestBody = """
-                                    {
-                                        "header": {
-                                            "approval_key": "$approvalKey",
-                                            "custtype": "P",
-                                            "tr_type": "1",
-                                            "content-type": "utf-8"
-                                        },
-                                        "body": {
-                                            "input": {
-                                                "tr_id": "${kospiProperties.tradeId}",
-                                                "tr_key": "$ticker"
-                                            }
-                                        }
-                                    }
-                                    """.trimIndent()
-                    session.textMessage(requestBody)
-                }
-
-            // 여러 종목에 대해 순차적 구독 요청
-            val sendRequests = session.send(subscriptionMessages)
-                .doOnNext { logger.info { "${tickers.size}개 종목에 대한 실시간 체결가 구독 요청을 모두 전송했습니다." } }
-
-
-            // 서버로부터 오는 모든 실시간 데이터를 수신
-            val receiveMessages = session.receive()
-                .map(WebSocketMessage::getPayloadAsText)
-                .flatMap { payload ->
-                    // PINGPONG 데이터 처리 로직
-                    if (payload.contains("PINGPONG")) {
-                        logger.debug { "PINGPONG 메시지 수신" }
-                        return@flatMap Mono.empty<Void>()
+            trackedKospiRepository.findAllByIsActiveIsTrue()
+                .map { it.ticker }
+                .collectList()
+                .flatMap { tickers ->
+                    if (tickers.isEmpty() || handlers.isEmpty()) {
+                        logger.warn { "추적할 활성 KOSPI 종목이 없거나, 구독 핸들러가 없습니다." }
+                        return@flatMap Mono.fromRunnable<Void> { sink.success() }
                     }
 
-                    val processedData = processStockData(payload)
-                    logger.info { "수신 데이터: $processedData" }
+                    apiKeyManager.getApprovalKey().flatMap { approvalKey ->
+                        val uri = URI.create(kospiProperties.websocketUrl)
+                        logger.info { "KOSPI 실시간 데이터 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}, 핸들러 수: ${handlers.size}" }
 
-                    // todo Kafka 전송 로직...
-                    Mono.empty<Void>()
+                        val headers = HttpHeaders()
+                        headers.add("approval_key", approvalKey)
+                        headers.add("custtype", "P")
+                        headers.add("tr_type", "1")
+                        headers.add("content-type", "utf-8")
+
+                        val sessionHandler = { session: WebSocketSession ->
+                            val subscriptionMessages = Flux.fromIterable(tickers)
+                                .flatMap { ticker ->
+                                    Flux.fromIterable(handlers).map { handler ->
+                                        handler.createRequest(approvalKey, ticker)
+                                    }
+                                }
+                                .delayElements(Duration.ofSeconds(1))
+                                .map { requestBody ->
+                                    session.textMessage(requestBody)
+                                }
+
+                            val sendRequests = session.send(subscriptionMessages)
+                                .doOnSuccess {
+                                    if (alreadySignaled.compareAndSet(false, true)) {
+                                        logger.info { "모든 KOSPI 구독 요청을 전송했습니다. 셋업을 완료합니다." }
+                                        sink.success()
+                                    }
+                                }
+                                .doOnError { error ->
+                                    if (alreadySignaled.compareAndSet(false, true)) { sink.error(error) }
+                                }
+
+                            val receiveMessages = session.receive()
+                                .map(WebSocketMessage::getPayloadAsText)
+                                .flatMap { payload ->
+                                    val handler = handlerMap.entries.find { payload.contains(it.key) }?.value
+                                    if (handler != null) {
+                                        val processedData = handler.processData(payload)
+                                        logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+                                    } else if (payload.contains("PINGPONG")) {
+                                        logger.debug { "PINGPONG 메시지 수신" }
+                                    } else {
+                                        logger.warn { "처리할 핸들러가 없는 데이터를 수신했습니다: $payload" }
+                                    }
+                                    Mono.empty<Void>()
+                                }
+
+                            sendRequests.thenMany(receiveMessages).then()
+                        }
+
+                        webSocketClient.execute(uri, headers, sessionHandler)
+                            .doOnError { error -> logger.error(error) { "KOSPI 웹소켓 연결에서 오류가 발생했습니다." } }
+                            .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
+                    }
                 }
-
-            sendRequests.thenMany(receiveMessages).then()
+                .subscribe(null, { error ->
+                    if (alreadySignaled.compareAndSet(false, true)) { sink.error(error) }
+                })
         }
     }
-
-    private fun processStockData(payload: String): String {
-        // todo JSON을 객체로 변환하는 로직
-        return "PROCESSED_TRADE_DATA: $payload"
-    }
-
 }

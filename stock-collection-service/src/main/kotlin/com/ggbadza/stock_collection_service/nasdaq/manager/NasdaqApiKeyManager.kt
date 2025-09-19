@@ -24,15 +24,13 @@ class NasdaqApiKeyManager(
     private var cachedApiKey: Mono<String> = Mono.empty()
 
     fun getApprovalKey(): Mono<String> {
-        return cachedApiKey
-            // 캐시 미존재시에 가져옴
-            .switchIfEmpty(fetchAndCacheApiKey())
+        return fetchAndCacheApiKey()
     }
 
     private fun fetchAndCacheApiKey(): Mono<String> {
         val request = ApprovalRequest(
-            appKey = apiProperties.websocket.kospi.appKey,
-            secretKey = apiProperties.websocket.kospi.appSecret
+            appKey = apiProperties.websocket.nasdaq.appKey,
+            secretKey = apiProperties.websocket.nasdaq.appSecret
         )
 
         cachedApiKey = webClient.post()
@@ -42,6 +40,7 @@ class NasdaqApiKeyManager(
             .retrieve()
             .bodyToMono(ApprovalResponse::class.java)
             .map { it.approvalKey }
+            .doOnSuccess { msg -> logger.info{ "Nasdaq API 키 요청 성공 $msg"} }
             .doOnError { error ->
                 when (error) {
                     is WebClientResponseException -> {

@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = KotlinLogging.logger {}
 
@@ -34,43 +35,35 @@ class NasdaqTradeManager(
     val nasdaqProperties = apiProperties.websocket.nasdaq
 
     override fun connect(): Mono<Void> {
-        return trackedNasdaqRepository.findAllByIsActiveIsTrue()
-            .map { it.ticker }
-            .collectList()
-            .flatMap { tickers ->
-                if (tickers.isEmpty()) {
-                    logger.warn { "추적할 활성 NASDAQ 종목이 없습니다." }
-                    return@flatMap Mono.empty<Void>()
-                }
+        return Mono.create { sink ->
+            val alreadySignaled = AtomicBoolean(false)
+            // 구독 취소 시 true로 변경
+            sink.onDispose { alreadySignaled.set(true) }
 
-                apiKeyManager.getApprovalKey().flatMap { approvalKey ->
-                    val uri = URI.create(nasdaqProperties.websocketUrl + nasdaqProperties.tradeId)
-                    logger.info { "NASDAQ 실시간 체결가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
+            trackedNasdaqRepository.findAllByIsActiveIsTrue()
+                .map { it.ticker }
+                .collectList()
+                .flatMap { tickers ->
+                    if (tickers.isEmpty()) {
+                        logger.warn { "추적할 활성 NASDAQ 종목이 없습니다." }
+                        return@flatMap Mono.fromRunnable<Void> { sink.success() }
+                    }
 
-                    val headers = HttpHeaders()
-                    headers.add("approval_key", approvalKey)
-                    headers.add("custtype", "P")
-                    headers.add("tr_type", "1")
-                    headers.add("content-type", "utf-8")
+                    apiKeyManager.getApprovalKey().flatMap { approvalKey ->
+                        val uri = URI.create(nasdaqProperties.websocketUrl + nasdaqProperties.tradeId)
+                        logger.info { "NASDAQ 실시간 체결가 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}" }
 
-                    // ✅ 변경점 2: 핸들러에 티커 리스트 전체를 전달
-                    val handler = createWebSocketHandler(approvalKey, tickers)
+                        val headers = HttpHeaders()
+                        headers.add("approval_key", approvalKey)
+                        headers.add("custtype", "P")
+                        headers.add("tr_type", "1")
+                        headers.add("content-type", "utf-8")
 
-                    webSocketClient.execute(uri, headers, handler)
-                        .doOnError { error -> logger.error(error) { "NASDAQ 웹소켓 연결에서 오류가 발생했습니다." } }
-                        .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
-                }
-            }
-    }
-
-
-
-    private fun createWebSocketHandler(approvalKey: String, tickers: List<String>): (WebSocketSession) -> Mono<Void> {
-        return { session ->
-            val subscriptionMessages = Flux.fromIterable(tickers)
-                .map { ticker ->
-                    // 헤더 및 바디 설정
-                    val requestBody = """
+                        val handler = { session: WebSocketSession ->
+                            val subscriptionMessages = Flux.fromIterable(tickers)
+                                .delayElements(Duration.ofSeconds(1)) // 각 ticker 마다 1초의 텀을 두고 api 연결
+                                .map { ticker ->
+                                    val requestBody = """
                                     {
                                         "header": {
                                             "approval_key": "$approvalKey",
@@ -86,32 +79,48 @@ class NasdaqTradeManager(
                                         }
                                     }
                                     """.trimIndent()
-                    session.textMessage(requestBody)
+                                    logger.info { "'${tickers}'에 대한 체결가 API 요청 시도." }
+                                    session.textMessage(requestBody)
+                                }
+
+                            val sendRequests = session.send(subscriptionMessages)
+                                .doOnSuccess {
+                                    if (alreadySignaled.compareAndSet(false, true)) {
+                                        logger.info { "모든 NASDAQ 구독 요청을 전송했습니다. 셋업을 완료합니다." }
+                                        sink.success()
+                                    }
+                                }
+                                .doOnError { error ->
+                                    if (alreadySignaled.compareAndSet(false, true)) {
+                                        logger.info { "웹소켓 연결 시도가 완료 전에 구독이 취소되었습니다." }
+                                        sink.error(error)
+                                    }
+                                }
+
+                            val receiveMessages = session.receive()
+                                .map(WebSocketMessage::getPayloadAsText)
+                                .flatMap { payload ->
+                                    if (payload.contains("PINGPONG")) {
+                                        logger.debug { "PINGPONG 메시지 수신" }
+                                        return@flatMap Mono.empty<Void>()
+                                    }
+                                    val processedData = processStockData(payload)
+                                    logger.info { "수신 데이터: $processedData" }
+                                    Mono.empty<Void>()
+                                }
+
+                            sendRequests.thenMany(receiveMessages).then()
+                        }
+
+                        webSocketClient.execute(uri, headers, handler)
+                            .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
+                    }
                 }
-
-            // 여러 종목에 대해 순차적 구독 요청
-            val sendRequests = session.send(subscriptionMessages)
-                .doOnNext { logger.info { "${tickers.size}개 종목에 대한 실시간 체결가 구독 요청을 모두 전송했습니다." } }
-
-
-            // 서버로부터 오는 모든 실시간 데이터를 수신
-            val receiveMessages = session.receive()
-                .map(WebSocketMessage::getPayloadAsText)
-                .flatMap { payload ->
-                    // PINGPONG 데이터 처리 로직
-//                    if (payload.contains("PINGPONG")) {
-//                        logger.debug { "PINGPONG 메시지 수신" }
-//                        return@flatMap Mono.empty<Void>()
-//                    }
-
-                    val processedData = processStockData(payload)
-                    logger.info { "수신 데이터: $processedData" }
-
-                    // todo Kafka 전송 로직...
-                    Mono.empty<Void>()
-                }
-
-            sendRequests.thenMany(receiveMessages).then()
+                .subscribe(null, { error ->
+                    if (alreadySignaled.compareAndSet(false, true)) {
+                        sink.error(error)
+                    }
+                })
         }
     }
 
