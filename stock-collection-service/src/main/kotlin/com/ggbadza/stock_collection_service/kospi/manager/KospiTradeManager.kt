@@ -1,5 +1,6 @@
 package com.ggbadza.stock_collection_service.kospi.manager
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
 import com.ggbadza.stock_collection_service.common.SubscriptionHandler
 import com.ggbadza.stock_collection_service.config.ApiProperties
@@ -7,7 +8,6 @@ import com.ggbadza.stock_collection_service.kospi.handler.KospiOrderBookSubsHand
 import com.ggbadza.stock_collection_service.kospi.handler.KospiTradeSubsHandler
 import com.ggbadza.stock_collection_service.kospi.repository.TrackedKospiRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import jakarta.annotation.PostConstruct
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketMessage
@@ -31,6 +31,7 @@ class KospiTradeManager(
     private val webSocketClient: WebSocketClient,
     private val apiProperties: ApiProperties,
     private val apiKeyManager: KospiApiKeyManager,
+    private val objectMapper: ObjectMapper,
     private val orderBookSubsHandler: KospiOrderBookSubsHandler,
     private val tradeSubsHandler: KospiTradeSubsHandler
 ) : StockMarketConnector {
@@ -38,8 +39,8 @@ class KospiTradeManager(
     // --- 멤버 변수 및 초기화 ---
     private val kospiProperties = apiProperties.websocket.kospi
 
-    private val handlers: List<SubscriptionHandler> = listOf(tradeSubsHandler, orderBookSubsHandler)
-    private val handlerMap: Map<String, SubscriptionHandler> = handlers.associateBy { it.getTrId() }
+    private val handlers: List<SubscriptionHandler<*>> = listOf(tradeSubsHandler, orderBookSubsHandler)
+    private val handlerMap: Map<String, SubscriptionHandler<*>> = handlers.associateBy { it.getTrId() }
 
 
     // --- 웹소켓 연결 로직 ---
@@ -93,10 +94,19 @@ class KospiTradeManager(
                             val receiveMessages = session.receive()
                                 .map(WebSocketMessage::getPayloadAsText)
                                 .flatMap { payload ->
-                                    val handler = handlerMap.entries.find { payload.contains(it.key) }?.value
+                                    val payloadList = payload.split("|")
+                                    val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
-                                        val processedData = handler.processData(payload)
-                                        logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+                                        val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
+
+                                        for(processedData in processedDataList){
+                                            logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+
+                                            val kafkaMessage = objectMapper.writeValueAsString(processedData)
+                                            // 카프카에 전송
+                                            logger.info { "[${payloadList[1]}_${processedData.getTicker()}]으로 데이터 전송 완료: $kafkaMessage" }
+
+                                        }
                                     } else if (payload.contains("PINGPONG")) {
                                         logger.debug { "PINGPONG 메시지 수신" }
                                     } else {
@@ -109,7 +119,7 @@ class KospiTradeManager(
                         }
 
                         webSocketClient.execute(uri, headers, sessionHandler)
-                            .doOnError { error -> logger.error(error) { "KOSPI 웹소켓 연결에서 오류가 발생했습니다." } }
+                            .doOnError { error -> logger.error(error) { "NASDAQ 웹소켓 연결에서 오류가 발생했습니다." } }
                             .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
                     }
                 }

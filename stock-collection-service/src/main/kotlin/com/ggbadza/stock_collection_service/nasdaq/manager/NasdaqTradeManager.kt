@@ -1,5 +1,7 @@
 package com.ggbadza.stock_collection_service.nasdaq.manager
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.ggbadza.stock_collection_service.common.StockDataMapper
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
 import com.ggbadza.stock_collection_service.common.SubscriptionHandler
 import com.ggbadza.stock_collection_service.config.ApiProperties
@@ -18,10 +20,12 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.kafka.sender.KafkaSender
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.Int
 
 private val logger = KotlinLogging.logger {}
 
@@ -32,7 +36,8 @@ private val logger = KotlinLogging.logger {}
 class NasdaqTradeManager(
     private val trackedNasdaqRepository: TrackedNasdaqRepository, // R2DBC 리포지토리
     private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
-//    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
+    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
+    private val objectMapper: ObjectMapper,
     private val apiProperties: ApiProperties, // API 설정 클래스
     private val apiKeyManager: NasdaqApiKeyManager,
     private val orderBookSubsHandler: NasdaqOrderBookSubsHandler,
@@ -41,8 +46,8 @@ class NasdaqTradeManager(
 
     private val nasdaqProperties = apiProperties.websocket.nasdaq
 
-    private val handlers: List<SubscriptionHandler> = listOf(tradeSubsHandler, orderBookSubsHandler)
-    private val handlerMap: Map<String, SubscriptionHandler> = handlers.associateBy { it.getTrId() }
+    private val handlers: List<SubscriptionHandler<out StockDataMapper>> = listOf(tradeSubsHandler, orderBookSubsHandler)
+    private val handlerMap: Map<String, SubscriptionHandler<out StockDataMapper>> = handlers.associateBy { it.getTrId() }
 
 
     // --- 웹소켓 연결 로직 ---
@@ -96,10 +101,19 @@ class NasdaqTradeManager(
                             val receiveMessages = session.receive()
                                 .map(WebSocketMessage::getPayloadAsText)
                                 .flatMap { payload ->
-                                    val handler = handlerMap.entries.find { payload.contains(it.key) }?.value
+                                    val payloadList = payload.split("|")
+                                    val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
-                                        val processedData = handler.processData(payload)
-                                        logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+                                        val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
+
+                                        for(processedData in processedDataList){
+                                            logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+
+                                            val kafkaMessage = objectMapper.writeValueAsString(processedData)
+                                            // 카프카에 전송
+                                            logger.info { "[${payloadList[1]}_${processedData.getTicker()}]으로 데이터 전송 완료: $kafkaMessage" }
+
+                                        }
                                     } else if (payload.contains("PINGPONG")) {
                                         logger.debug { "PINGPONG 메시지 수신" }
                                     } else {
