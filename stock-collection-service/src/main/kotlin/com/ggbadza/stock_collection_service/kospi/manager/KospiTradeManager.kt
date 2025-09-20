@@ -32,13 +32,13 @@ class KospiTradeManager(
     private val apiProperties: ApiProperties,
     private val apiKeyManager: KospiApiKeyManager,
     private val orderBookSubsHandler: KospiOrderBookSubsHandler,
-    private val kospiTradeSubsHandler: KospiTradeSubsHandler
+    private val tradeSubsHandler: KospiTradeSubsHandler
 ) : StockMarketConnector {
 
     // --- 멤버 변수 및 초기화 ---
     private val kospiProperties = apiProperties.websocket.kospi
 
-    private val handlers: List<SubscriptionHandler> = listOf(kospiTradeSubsHandler, orderBookSubsHandler)
+    private val handlers: List<SubscriptionHandler> = listOf(tradeSubsHandler, orderBookSubsHandler)
     private val handlerMap: Map<String, SubscriptionHandler> = handlers.associateBy { it.getTrId() }
 
 
