@@ -36,7 +36,7 @@ private val logger = KotlinLogging.logger {}
 class NasdaqTradeManager(
     private val trackedNasdaqRepository: TrackedNasdaqRepository, // R2DBC 리포지토리
     private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
-    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
+//    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
     private val objectMapper: ObjectMapper,
     private val apiProperties: ApiProperties, // API 설정 클래스
     private val apiKeyManager: NasdaqApiKeyManager,
@@ -99,9 +99,19 @@ class NasdaqTradeManager(
                                 }
 
                             val receiveMessages = session.receive()
-                                .map(WebSocketMessage::getPayloadAsText)
+                                .map{it.payloadAsText}
                                 .flatMap { payload ->
                                     val payloadList = payload.split("|")
+
+                                    if (payloadList.size < 4) {
+                                        if (payload.contains("PINGPONG")) {
+                                            logger.debug { "PINGPONG 메시지 수신" }
+                                        } else {
+                                            logger.warn { "예상치 못한 형식의 데이터를 수신했습니다: $payload" }
+                                        }
+                                        return@flatMap Mono.empty<Void>()
+                                    }
+
                                     val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
@@ -114,8 +124,6 @@ class NasdaqTradeManager(
                                             logger.info { "[${payloadList[1]}_${processedData.getTicker()}]으로 데이터 전송 완료: $kafkaMessage" }
 
                                         }
-                                    } else if (payload.contains("PINGPONG")) {
-                                        logger.debug { "PINGPONG 메시지 수신" }
                                     } else {
                                         logger.warn { "처리할 핸들러가 없는 데이터를 수신했습니다: $payload" }
                                     }

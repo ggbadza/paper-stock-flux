@@ -13,21 +13,21 @@ import reactor.kafka.sender.SenderOptions
 //@Configuration
 class KafkaProducerConfig {
 
-//    @Value("\${spring.kafka.producer.bootstrap-servers}")
-//    private lateinit var bootstrapServers: String
-//
-//    @Bean
-//    fun kafkaSender(): KafkaSender<String, String>? {
-//        val props = mapOf<String, Any>(
-//            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
-//            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
-//            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to JsonSerializer::class.java,
-//            ProducerConfig.ACKS_CONFIG to "0"
-//        )
-//
-//        val senderOptions = SenderOptions.create<String, String>(props)
-//
-//        return KafkaSender.create(senderOptions)
-//    }
+    @Value("\${spring.kafka.producer.bootstrap-servers}")
+    private lateinit var bootstrapServers: String
+
+    @Bean
+    fun kafkaSender(): KafkaSender<String, String>? {
+        val props = mapOf<String, Any>(
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
+            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
+            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to JsonSerializer::class.java,
+            ProducerConfig.ACKS_CONFIG to "0"
+        )
+
+        val senderOptions = SenderOptions.create<String, String>(props)
+
+        return KafkaSender.create(senderOptions)
+    }
 
 }

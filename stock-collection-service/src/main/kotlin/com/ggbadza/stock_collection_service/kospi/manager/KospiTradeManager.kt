@@ -25,7 +25,7 @@ private val logger = KotlinLogging.logger {}
 /**
  * KOSPI 실시간 데이터 수집 흐름을 총괄하는 Bean
  */
-@Component
+//@Component
 class KospiTradeManager(
     private val trackedKospiRepository: TrackedKospiRepository,
     private val webSocketClient: WebSocketClient,
@@ -92,9 +92,19 @@ class KospiTradeManager(
                                 }
 
                             val receiveMessages = session.receive()
-                                .map(WebSocketMessage::getPayloadAsText)
-                                .flatMap { payload ->
+                                .map{it.payloadAsText}
+                                .flatMap {  payload ->
                                     val payloadList = payload.split("|")
+
+                                    if (payloadList.size < 4) {
+                                        if (payload.contains("PINGPONG")) {
+                                            logger.debug { "PINGPONG 메시지 수신" }
+                                        } else {
+                                            logger.warn { "예상치 못한 형식의 데이터를 수신했습니다: $payload" }
+                                        }
+                                        return@flatMap Mono.empty<Void>()
+                                    }
+
                                     val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
@@ -107,8 +117,6 @@ class KospiTradeManager(
                                             logger.info { "[${payloadList[1]}_${processedData.getTicker()}]으로 데이터 전송 완료: $kafkaMessage" }
 
                                         }
-                                    } else if (payload.contains("PINGPONG")) {
-                                        logger.debug { "PINGPONG 메시지 수신" }
                                     } else {
                                         logger.warn { "처리할 핸들러가 없는 데이터를 수신했습니다: $payload" }
                                     }
