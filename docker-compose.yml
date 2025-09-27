@@ -1,3 +1,6 @@
+include:
+  - ./kafka/docker-compose.yml
+
 services:
   collection-db:
     image: mysql:8.0

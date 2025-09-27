@@ -10,7 +10,7 @@ import org.springframework.kafka.support.serializer.JsonSerializer
 import reactor.kafka.sender.KafkaSender
 import reactor.kafka.sender.SenderOptions
 
-//@Configuration
+@Configuration
 class KafkaProducerConfig {
 
     @Value("\${spring.kafka.producer.bootstrap-servers}")

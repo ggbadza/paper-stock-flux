@@ -8,9 +8,9 @@ spring:
     username : admin
     password : password
     url : r2dbc:mysql://collection-db:3306/webflux?useSSL=false&allowPublicKeyRetrieval=true
-#  kafka:
-#    producer:
-#      bootstrap-servers: kafka:29092
+  kafka:
+    producer:
+      bootstrap-servers: kafka:29092
 
 api:
   websocket:

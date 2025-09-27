@@ -15,6 +15,8 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.kafka.sender.KafkaSender
+import reactor.kafka.sender.SenderRecord
 import reactor.util.retry.Retry
 import java.net.URI
 import java.time.Duration
@@ -29,6 +31,7 @@ private val logger = KotlinLogging.logger {}
 class KospiTradeManager(
     private val trackedKospiRepository: TrackedKospiRepository,
     private val webSocketClient: WebSocketClient,
+    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
     private val apiProperties: ApiProperties,
     private val apiKeyManager: KospiApiKeyManager,
     private val objectMapper: ObjectMapper,
@@ -92,8 +95,8 @@ class KospiTradeManager(
                                 }
 
                             val receiveMessages = session.receive()
-                                .map{it.payloadAsText}
-                                .flatMap {  payload ->
+                                .map { it.payloadAsText }
+                                .flatMap { payload ->
                                     val payloadList = payload.split("|")
 
                                     if (payloadList.size < 4) {
@@ -108,19 +111,30 @@ class KospiTradeManager(
                                     val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
+                                        val topic = if (handler.getTrId() == kospiProperties.tradeId) "kospi-trade" else "kospi-orderbook"
 
-                                        for(processedData in processedDataList){
-                                            logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
+                                        return@flatMap Flux.fromIterable(processedDataList)
+                                            .flatMap { processedData ->
+                                                val kafkaMessage = objectMapper.writeValueAsString(processedData)
+                                                val record = SenderRecord.create(topic, null, null, "${payloadList[1]}_${processedData.getTicker()}", kafkaMessage, null)
 
-                                            val kafkaMessage = objectMapper.writeValueAsString(processedData)
-                                            // 카프카에 전송
-                                            logger.info { "[${payloadList[1]}_${processedData.getTicker()}]으로 데이터 전송 완료: $kafkaMessage" }
+                                                logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
 
-                                        }
+                                                kafkaSender.send(Mono.just(record))
+                                                    .doOnNext { result ->
+                                                        val metadata = result.recordMetadata()
+                                                        logger.info {
+                                                            "[$topic]으로 데이터 전송 완료: ${processedData.getTicker()} " +
+                                                                    "partition ${metadata.partition()} offset ${metadata.offset()}"
+                                                        }
+                                                    }
+                                                    .doOnError { e -> logger.error(e) { "Kafka 전송 실패: $kafkaMessage" } }
+                                            }
+                                            .then()
                                     } else {
                                         logger.warn { "처리할 핸들러가 없는 데이터를 수신했습니다: $payload" }
+                                        return@flatMap Mono.empty<Void>()
                                     }
-                                    Mono.empty<Void>()
                                 }
 
                             sendRequests.thenMany(receiveMessages).then()
