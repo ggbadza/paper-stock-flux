@@ -58,6 +58,7 @@ class NasdaqTradeManager(
             val alreadySignaled = AtomicBoolean(false)
             sink.onDispose { alreadySignaled.set(true) }
 
+            // 1. 활성화 된 나스닥 종목들을 가져옮
             trackedNasdaqRepository.findAllByIsActiveIsTrue()
                 .map { it.ticker }
                 .collectList()
@@ -67,6 +68,7 @@ class NasdaqTradeManager(
                         return@flatMap Mono.fromRunnable<Void> { sink.success() }
                     }
 
+                    // 2. Approval Key를 가져옴
                     apiKeyManager.getApprovalKey().flatMap { approvalKey ->
                         val uri = URI.create(nasdaqProperties.websocketUrl)
                         logger.info { "NASDAQ 실시간 데이터 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}, 핸들러 수: ${handlers.size}" }
@@ -77,9 +79,11 @@ class NasdaqTradeManager(
                         headers.add("tr_type", "1")
                         headers.add("content-type", "utf-8")
 
+                        // 3. 웹소켓 핸들러 정의
                         val sessionHandler = { session: WebSocketSession ->
                             val subscriptionMessages = Flux.fromIterable(tickers)
                                 .flatMap { ticker ->
+                                    // 각 핸들러별 요청 생성
                                     Flux.fromIterable(handlers).map { handler ->
                                         handler.createRequest(approvalKey, ticker)
                                     }
@@ -100,11 +104,14 @@ class NasdaqTradeManager(
                                     if (alreadySignaled.compareAndSet(false, true)) { sink.error(error) }
                                 }
 
+                            // 4. 메세지 수신 정의
                             val receiveMessages = session.receive()
                                 .map { it.payloadAsText }
                                 .flatMap { payload ->
+                                    // -- 각 데이터는 가변전문으로 "|"으로 구분 됨 --
                                     val payloadList = payload.split("|")
 
+                                    // 4-a. 4개 미만의 페이로드 데이터는 비정상적인 데이터로 오류 처리
                                     if (payloadList.size < 4) {
                                         if (payload.contains("PINGPONG")) {
                                             logger.debug { "PINGPONG 메시지 수신" }
@@ -114,18 +121,22 @@ class NasdaqTradeManager(
                                         return@flatMap Mono.empty<Void>()
                                     }
 
+                                    // 4-b. 페이로드에 대응하는 핸들러 호출
                                     val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
+                                        // 4-c. 핸들러로 데이터 처리 (체결가는 한번에 여러 묶음의 전문이 올 수 있어서 리스트로 데이터를 변경)
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
                                         val topic = if (handler.getTrId() == nasdaqProperties.tradeId) "nasdaq-trade" else "nasdaq-orderbook"
 
                                         return@flatMap Flux.fromIterable(processedDataList)
                                             .flatMap { processedData ->
+                                                // 4-d. 카프카로 전송할 메세지로 변경
                                                 val kafkaMessage = objectMapper.writeValueAsString(processedData)
                                                 val record = SenderRecord.create(topic,null, null, "${payloadList[1]}_${processedData.getTicker()}", kafkaMessage, null)
 
                                                 logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
 
+                                                // 4-e. 카프카에 메세지 전송
                                                 kafkaSender.send(Mono.just(record))
                                                     .doOnNext { result ->
                                                         val metadata = result.recordMetadata()
@@ -146,6 +157,7 @@ class NasdaqTradeManager(
                             sendRequests.thenMany(receiveMessages).then()
                         }
 
+                        // 5. 정의된 핸들러를 사용하여 웹소켓 연결 수행
                         webSocketClient.execute(uri, headers, sessionHandler)
                             .doOnError { error -> logger.error(error) { "NASDAQ 웹소켓 연결에서 오류가 발생했습니다." } }
                             .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5)))
