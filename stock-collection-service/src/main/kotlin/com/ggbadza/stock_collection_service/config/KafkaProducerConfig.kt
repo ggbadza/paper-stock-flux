@@ -25,6 +25,7 @@ class KafkaProducerConfig {
             ProducerConfig.ACKS_CONFIG to "0"
         )
 
+
         val senderOptions = SenderOptions.create<String, String>(props)
 
         return KafkaSender.create(senderOptions)
