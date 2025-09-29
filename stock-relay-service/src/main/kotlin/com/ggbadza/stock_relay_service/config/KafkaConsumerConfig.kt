@@ -1,5 +1,7 @@
 package com.ggbadza.stock_relay_service.config
 
+import com.ggbadza.stock_collection_service.nasdaq.dto.NasdaqOrderBookDto
+import com.ggbadza.stock_collection_service.nasdaq.dto.NasdaqTradeDto
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.beans.factory.annotation.Value
@@ -66,7 +68,7 @@ class KafkaConsumerConfig(
 
     // Nasdaq 체결가 토픽을 위한 KafkaReceiver 빈
     @Bean
-    fun nasdaqKafkaTradeReceiver(): KafkaReceiver<String, String> {
+    fun nasdaqKafkaTradeReceiver(): KafkaReceiver<String, NasdaqTradeDto> {
         val props = mapOf<String, Any>(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
             ConsumerConfig.GROUP_ID_CONFIG to groupId,
@@ -77,7 +79,7 @@ class KafkaConsumerConfig(
         )
 
         // 구독할 토픽 지정
-        val receiverOptions = ReceiverOptions.create<String, String>(props)
+        val receiverOptions = ReceiverOptions.create<String, NasdaqTradeDto>(props)
             .subscription(Collections.singleton(nadsaqApiProperties.kafka.tradeTopic))
 
         return KafkaReceiver.create(receiverOptions)
@@ -85,7 +87,7 @@ class KafkaConsumerConfig(
 
     // Nasdaq 호가 토픽을 위한 KafkaReceiver 빈
     @Bean
-    fun nasdaqKafkaOrderBookReceiver(): KafkaReceiver<String, String> {
+    fun nasdaqKafkaOrderBookReceiver(): KafkaReceiver<String, NasdaqOrderBookDto> {
         val props = mapOf<String, Any>(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
             ConsumerConfig.GROUP_ID_CONFIG to groupId,
@@ -96,7 +98,7 @@ class KafkaConsumerConfig(
         )
 
         // 구독할 토픽 지정
-        val receiverOptions = ReceiverOptions.create<String, String>(props)
+        val receiverOptions = ReceiverOptions.create<String, NasdaqOrderBookDto>(props)
             .subscription(Collections.singleton(nadsaqApiProperties.kafka.orderBookTopic))
 
         return KafkaReceiver.create(receiverOptions)
