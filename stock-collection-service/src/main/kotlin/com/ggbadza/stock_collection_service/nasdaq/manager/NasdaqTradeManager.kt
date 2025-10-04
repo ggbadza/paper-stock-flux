@@ -38,7 +38,7 @@ private val logger = KotlinLogging.logger {}
 class NasdaqTradeManager(
     private val trackedNasdaqRepository: TrackedNasdaqRepository, // R2DBC 리포지토리
     private val webSocketClient: WebSocketClient, // WebSocketClientConfig에서 Bean으로 등록
-    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
+    private val kafkaSender: KafkaSender<String, StockDataMapper>, // KafkaProducerConfig에서 Bean으로 등록
     private val objectMapper: ObjectMapper,
     private val apiProperties: ApiProperties, // API 설정 클래스
     private val apiKeyManager: NasdaqApiKeyManager,
@@ -131,8 +131,8 @@ class NasdaqTradeManager(
                                         return@flatMap Flux.fromIterable(processedDataList)
                                             .flatMap { processedData ->
                                                 // 4-d. 카프카로 전송할 메세지로 변경
-                                                val kafkaMessage = objectMapper.writeValueAsString(processedData)
-                                                val record = SenderRecord.create(topic,null, null, "${payloadList[1]}_${processedData.getTicker()}", kafkaMessage, null)
+//                                                val kafkaMessage = objectMapper.writeValueAsString(processedData)
+                                                val record = SenderRecord.create(topic,null, null, "${payloadList[1]}_${processedData.getTicker()}", processedData, null)
 
                                                 logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
 
@@ -145,7 +145,7 @@ class NasdaqTradeManager(
                                                                     "partition ${metadata.partition()} offset ${metadata.offset()}"
                                                         }
                                                     }
-                                                    .doOnError { e -> logger.error(e) { "Kafka 전송 실패: $kafkaMessage" } }
+                                                    .doOnError { e -> logger.error(e) { "Kafka 전송 실패: $processedData" } }
                                             }
                                             .then()
                                     } else {

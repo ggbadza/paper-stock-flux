@@ -1,6 +1,7 @@
 package com.ggbadza.stock_collection_service.kospi.manager
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.ggbadza.stock_collection_service.common.StockDataMapper
 import com.ggbadza.stock_collection_service.common.StockMarketConnector
 import com.ggbadza.stock_collection_service.common.SubscriptionHandler
 import com.ggbadza.stock_collection_service.config.ApiProperties
@@ -31,7 +32,7 @@ private val logger = KotlinLogging.logger {}
 class KospiTradeManager(
     private val trackedKospiRepository: TrackedKospiRepository,
     private val webSocketClient: WebSocketClient,
-    private val kafkaSender: KafkaSender<String, String>, // KafkaProducerConfig에서 Bean으로 등록
+    private val kafkaSender: KafkaSender<String, StockDataMapper>, // KafkaProducerConfig에서 Bean으로 등록
     private val apiProperties: ApiProperties,
     private val apiKeyManager: KospiApiKeyManager,
     private val objectMapper: ObjectMapper,
@@ -115,8 +116,8 @@ class KospiTradeManager(
 
                                         return@flatMap Flux.fromIterable(processedDataList)
                                             .flatMap { processedData ->
-                                                val kafkaMessage = objectMapper.writeValueAsString(processedData)
-                                                val record = SenderRecord.create(topic, null, null, "${payloadList[1]}_${processedData.getTicker()}", kafkaMessage, null)
+//                                                val kafkaMessage = objectMapper.writeValueAsString(processedData)
+                                                val record = SenderRecord.create(topic, null, null, "${payloadList[1]}_${processedData.getTicker()}", processedData, null)
 
                                                 logger.info { "수신 데이터 (${handler.javaClass.simpleName}): $processedData" }
 
@@ -128,7 +129,7 @@ class KospiTradeManager(
                                                                     "partition ${metadata.partition()} offset ${metadata.offset()}"
                                                         }
                                                     }
-                                                    .doOnError { e -> logger.error(e) { "Kafka 전송 실패: $kafkaMessage" } }
+                                                    .doOnError { e -> logger.error(e) { "Kafka 전송 실패: $processedData" } }
                                             }
                                             .then()
                                     } else {

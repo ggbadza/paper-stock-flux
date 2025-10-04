@@ -1,5 +1,6 @@
 package com.ggbadza.stock_collection_service.config
 
+import com.ggbadza.stock_collection_service.common.StockDataMapper
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.beans.factory.annotation.Value
@@ -17,7 +18,7 @@ class KafkaProducerConfig {
     private lateinit var bootstrapServers: String
 
     @Bean
-    fun kafkaSender(): KafkaSender<String, String>? {
+    fun kafkaSender(): KafkaSender<String, StockDataMapper>? {
         val props = mapOf<String, Any>(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
@@ -26,7 +27,7 @@ class KafkaProducerConfig {
         )
 
 
-        val senderOptions = SenderOptions.create<String, String>(props)
+        val senderOptions = SenderOptions.create<String, StockDataMapper>(props)
 
         return KafkaSender.create(senderOptions)
     }
