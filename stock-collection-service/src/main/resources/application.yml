@@ -21,6 +21,8 @@ api:
       order-book-id: "H0STCNT0"
       app-key: "test"
       app-secret: "test"
+      trade-topic: "kospi-trade"
+      order-book-topic: "kospi-order-book"
     nasdaq:
       key-url: "https://openapi.koreainvestment.com:9443/oauth2/Approval"
       websocket-url: "ws://ops.koreainvestment.com:21000/tryitout/"
@@ -28,4 +30,6 @@ api:
       order-book-id: "HDFSASP0"
       app-key: "test"
       app-secret: "test"
+      trade-topic: "nasdaq-trade"
+      order-book-topic: "nasdaq-order-book"
 

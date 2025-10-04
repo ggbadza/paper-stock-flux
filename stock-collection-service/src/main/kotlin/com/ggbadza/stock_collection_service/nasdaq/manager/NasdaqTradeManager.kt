@@ -126,7 +126,7 @@ class NasdaqTradeManager(
                                     if (handler != null) {
                                         // 4-c. 핸들러로 데이터 처리 (체결가는 한번에 여러 묶음의 전문이 올 수 있어서 리스트로 데이터를 변경)
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
-                                        val topic = if (handler.getTrId() == nasdaqProperties.tradeId) "nasdaq-trade" else "nasdaq-orderbook"
+                                        val topic = if (handler.getTrId() == nasdaqProperties.tradeId) nasdaqProperties.tradeTopic else nasdaqProperties.orderBookTopic
 
                                         return@flatMap Flux.fromIterable(processedDataList)
                                             .flatMap { processedData ->

@@ -17,6 +17,8 @@ data class ApiProperties(
         val tradeId: String,
         val orderBookId: String,
         val appKey: String,
-        val appSecret: String
+        val appSecret: String,
+        val tradeTopic: String,
+        val orderBookTopic: String,
     )
 }

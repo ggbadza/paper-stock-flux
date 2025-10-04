@@ -112,7 +112,7 @@ class KospiTradeManager(
                                     val handler = handlerMap[payloadList[1]]
                                     if (handler != null) {
                                         val processedDataList = handler.processData(payloadList[3], payloadList[2].toInt())
-                                        val topic = if (handler.getTrId() == kospiProperties.tradeId) "kospi-trade" else "kospi-orderbook"
+                                        val topic = if (handler.getTrId() == kospiProperties.tradeId) kospiProperties.tradeTopic else kospiProperties.orderBookTopic
 
                                         return@flatMap Flux.fromIterable(processedDataList)
                                             .flatMap { processedData ->
