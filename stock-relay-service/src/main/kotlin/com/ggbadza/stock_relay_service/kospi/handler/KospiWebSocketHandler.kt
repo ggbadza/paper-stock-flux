@@ -1,9 +1,9 @@
-package com.ggbadza.stock_relay_service.nasdaq.handler
+package com.ggbadza.stock_relay_service.kospi.handler
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ggbadza.stock_relay_service.common.enums.WebSocketCommand
-import com.ggbadza.stock_relay_service.nasdaq.service.NasdaqOrderBookBroadcaster
-import com.ggbadza.stock_relay_service.nasdaq.service.NasdaqTradeBroadcaster
+import com.ggbadza.stock_relay_service.kospi.service.KospiOrderBookBroadcaster
+import com.ggbadza.stock_relay_service.kospi.service.KospiTradeBroadcaster
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketHandler
 import org.springframework.web.reactive.socket.WebSocketSession
@@ -11,9 +11,9 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 
 @Component
-class NasdaqWebSocketHandler(
-    private val tradeBroadcaster: NasdaqTradeBroadcaster,
-    private val orderBookBroadcaster: NasdaqOrderBookBroadcaster,
+class KospiWebSocketHandler(
+    private val tradeBroadcaster: KospiTradeBroadcaster,
+    private val orderBookBroadcaster: KospiOrderBookBroadcaster,
     private val objectMapper: ObjectMapper
 ) : WebSocketHandler {
 

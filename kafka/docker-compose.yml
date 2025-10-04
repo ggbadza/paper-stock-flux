@@ -1,5 +1,4 @@
 # /kafka/docker-compose.yml
-version: '3.8'
 
 services:
   zookeeper:
@@ -31,6 +30,12 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     volumes: 
       - kafka_data:/var/lib/kafka/data
+    command: > 
+      bash -c "
+        echo 'Deleting meta.properties for development...' &&
+        rm -f /var/lib/kafka/data/meta.properties &&
+        /etc/confluent/docker/run
+      "
 
 
   kafdrop:

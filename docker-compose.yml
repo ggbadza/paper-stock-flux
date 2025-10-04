@@ -25,6 +25,17 @@ services:
     depends_on:
         collection-db:
             condition: service_started 
+            
+  relay-app:
+    build:
+      context: ./stock-relay-service
+      dockerfile: Dockerfile
+    container_name: stock-relay-service
+    ports:
+      - "8090:8080"
+    depends_on:
+        collection-db:
+            condition: service_started 
 
 volumes:
   collection-db-data:
