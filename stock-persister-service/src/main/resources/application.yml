@@ -1,0 +1,25 @@
+spring:
+  application:
+    name :
+      stock-relay-service
+  sql:
+    init:
+      mode: always
+  r2dbc:
+    username: admin
+    password: password
+    url: r2dbc:mysql://relay-db:3306/webflux?useSSL=false&allowPublicKeyRetrieval=true
+  kafka:
+    consumer:
+      bootstrap-servers: kafka:29092
+      group-id: "test-group-1"
+
+api:
+  nasdaq:
+    kafka:
+      trade-topic: "nasdaq-trade"
+      order-book-topic: "nasdaq-order-book"
+  kospi:
+    kafka:
+      trade-topic: "kospi-trade"
+      order-book-topic: "kospi-order-book"
