@@ -1,6 +1,7 @@
 package com.ggbadza.stock_persister_service.nasdaq.entity
 
 import org.springframework.data.relational.core.mapping.Table
+import java.math.BigDecimal
 import java.time.LocalDateTime
 
 /**
@@ -10,7 +11,8 @@ import java.time.LocalDateTime
 data class NasdaqOrderBookEntity(
     val time: LocalDateTime,
     val ticker: String,
-    val price: Long,
-    val volume: Long,
-    val orderType: String?
+    val bidVolume1 : Long,
+    val bidPrice1  : BigDecimal,
+    val askVolume1 : Long,
+    val askPrice1  : BigDecimal
 )

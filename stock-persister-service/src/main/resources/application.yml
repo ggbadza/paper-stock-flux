@@ -6,9 +6,9 @@ spring:
     init:
       mode: always
   r2dbc:
+    url: r2dbc:postgresql://persister-db:5432/webflux
     username: admin
     password: password
-    url: r2dbc:mysql://relay-db:3306/webflux?useSSL=false&allowPublicKeyRetrieval=true
   kafka:
     consumer:
       bootstrap-servers: kafka:29092

@@ -1,4 +1,4 @@
-package com.ggbadza.stock_relay_service.kospi.dto
+package com.ggbadza.stock_persister_service.kospi.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 

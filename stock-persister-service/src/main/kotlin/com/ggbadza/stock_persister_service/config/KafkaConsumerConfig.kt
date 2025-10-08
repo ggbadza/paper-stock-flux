@@ -1,9 +1,9 @@
 package com.ggbadza.stock_persister_service.config
 
-import com.ggbadza.stock_collection_service.nasdaq.dto.NasdaqOrderBookDto
-import com.ggbadza.stock_collection_service.nasdaq.dto.NasdaqTradeDto
-import com.ggbadza.stock_relay_service.kospi.dto.KospiOrderBookDto
-import com.ggbadza.stock_relay_service.kospi.dto.KospiTradeDto
+import com.ggbadza.stock_persister_service.nasdaq.dto.NasdaqOrderBookDto
+import com.ggbadza.stock_persister_service.nasdaq.dto.NasdaqTradeDto
+import com.ggbadza.stock_persister_service.kospi.dto.KospiOrderBookDto
+import com.ggbadza.stock_persister_service.kospi.dto.KospiTradeDto
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.beans.factory.annotation.Value

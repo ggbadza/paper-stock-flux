@@ -1,4 +1,4 @@
-package com.ggbadza.stock_collection_service.nasdaq.dto
+package com.ggbadza.stock_persister_service.nasdaq.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 

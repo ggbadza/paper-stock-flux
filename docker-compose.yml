@@ -36,6 +36,30 @@ services:
     depends_on:
         collection-db:
             condition: service_started 
+            
+  persister-db:
+      image: timescale/timescaledb:latest-pg14
+      container_name: stock-persister-service-db
+      ports:
+        - "25432:5432"
+      environment:
+        POSTGRES_DB: webflux
+        POSTGRES_USER: admin
+        POSTGRES_PASSWORD: password
+      volumes:
+        - persister-db-data:/var/lib/postgresql/data      
+  
+  persister-app:
+      build:
+        context: ./stock-persister-service
+        dockerfile: Dockerfile
+      container_name: stock-persister-service
+      ports:
+        - "8100:8080"
+      depends_on:
+        persister-db:
+          condition: service_started
 
 volumes:
   collection-db-data:
+  persister-db-data:

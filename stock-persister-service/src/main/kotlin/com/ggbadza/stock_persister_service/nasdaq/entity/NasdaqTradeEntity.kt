@@ -1,6 +1,7 @@
 package com.ggbadza.stock_persister_service.nasdaq.entity
 
 import org.springframework.data.relational.core.mapping.Table
+import java.math.BigDecimal
 import java.time.LocalDateTime
 
 /**
@@ -10,7 +11,7 @@ import java.time.LocalDateTime
 data class NasdaqTradeEntity(
     val time: LocalDateTime,
     val ticker: String,
-    val price: Long,
+    val price: BigDecimal,
     val volume: Long,
     val tradeType: String?
 )
