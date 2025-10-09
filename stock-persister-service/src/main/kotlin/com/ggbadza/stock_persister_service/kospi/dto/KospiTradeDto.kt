@@ -32,7 +32,7 @@ data class KospiTradeDto(
 
     /** 가중 평균 주식 가격 */
     @get:JsonProperty("WGHN_AVRG_STCK_PRC")
-    val wghnAvrgStckPrc: String,
+    val wghnAvrgStckPrc: String?,
 
     /** 주식 시가 */
     @get:JsonProperty("STCK_OPRC")
@@ -40,19 +40,19 @@ data class KospiTradeDto(
 
     /** 주식 최고가 */
     @get:JsonProperty("STCK_HGPR")
-    val stckHgpr: String,
+    val stckHgpr: String?,
 
     /** 주식 최저가 */
     @get:JsonProperty("STCK_LWPR")
-    val stckLwpr: String,
+    val stckLwpr: String?,
 
     /** 매도호가1 */
     @get:JsonProperty("ASKP1")
-    val askp1: String,
+    val askp1: String?,
 
     /** 매수호가1 */
     @get:JsonProperty("BIDP1")
-    val bidp1: String,
+    val bidp1: String?,
 
     /** 체결 거래량 */
     @get:JsonProperty("CNTG_VOL")
@@ -60,135 +60,135 @@ data class KospiTradeDto(
 
     /** 누적 거래량 */
     @get:JsonProperty("ACML_VOL")
-    val acmlVol: String,
+    val acmlVol: String?,
 
     /** 누적 거래 대금 */
     @get:JsonProperty("ACML_TR_PBMN")
-    val acmlTrPbmn: String,
+    val acmlTrPbmn: String?,
 
     /** 매도 체결 건수 */
     @get:JsonProperty("SELN_CNTG_CSNU")
-    val selnCntgCsnu: String,
+    val selnCntgCsnu: String?,
 
     /** 매수 체결 건수 */
     @get:JsonProperty("SHNU_CNTG_CSNU")
-    val shnuCntgCsnu: String,
+    val shnuCntgCsnu: String?,
 
     /** 순매수 체결 건수 */
     @get:JsonProperty("NTBY_CNTG_CSNU")
-    val ntbyCntgCsnu: String,
+    val ntbyCntgCsnu: String?,
 
     /** 체결강도 */
     @get:JsonProperty("CTTR")
-    val cttr: String,
+    val cttr: String?,
 
     /** 총 매도 수량 */
     @get:JsonProperty("SELN_CNTG_SMTN")
-    val selnCntgSmtn: String,
+    val selnCntgSmtn: String?,
 
     /** 총 매수 수량 */
     @get:JsonProperty("SHNU_CNTG_SMTN")
-    val shnuCntgSmtn: String,
+    val shnuCntgSmtn: String?,
 
     /** 체결구분 */
     @get:JsonProperty("CCLD_DVSN")
-    val ccldDvsn: String,
+    val ccldDvsn: String?,
 
     /** 매수비율 */
     @get:JsonProperty("SHNU_RATE")
-    val shnuRate: String,
+    val shnuRate: String?,
 
     /** 전일 거래량 대비 등락율 */
     @get:JsonProperty("PRDY_VOL_VRSS_ACML_VOL_RATE")
-    val prdyVolVrssAcmlVolRate: String,
+    val prdyVolVrssAcmlVolRate: String?,
 
     /** 시가 시간 */
     @get:JsonProperty("OPRC_HOUR")
-    val oprcHour: String,
+    val oprcHour: String?,
 
     /** 시가대비구분 */
     @get:JsonProperty("OPRC_VRSS_PRPR_SIGN")
-    val oprcVrssPrprSign: String,
+    val oprcVrssPrprSign: String?,
 
     /** 시가대비 */
     @get:JsonProperty("OPRC_VRSS_PRPR")
-    val oprcVrssPrpr: String,
+    val oprcVrssPrpr: String?,
 
     /** 최고가 시간 */
     @get:JsonProperty("HGPR_HOUR")
-    val hgprHour: String,
+    val hgprHour: String?,
 
     /** 고가대비구분 */
     @get:JsonProperty("HGPR_VRSS_PRPR_SIGN")
-    val hgprVrssPrprSign: String,
+    val hgprVrssPrprSign: String?,
 
     /** 고가대비 */
     @get:JsonProperty("HGPR_VRSS_PRPR")
-    val hgprVrssPrpr: String,
+    val hgprVrssPrpr: String?,
 
     /** 최저가 시간 */
     @get:JsonProperty("LWPR_HOUR")
-    val lwprHour: String,
+    val lwprHour: String?,
 
     /** 저가대비구분 */
     @get:JsonProperty("LWPR_VRSS_PRPR_SIGN")
-    val lwprVrssPrprSign: String,
+    val lwprVrssPrprSign: String?,
 
     /** 저가대비 */
     @get:JsonProperty("LWPR_VRSS_PRPR")
-    val lwprVrssPrpr: String,
+    val lwprVrssPrpr: String?,
 
     /** 영업 일자 */
     @get:JsonProperty("BSOP_DATE")
-    val bsopDate: String,
+    val bsopDate: String?,
 
     /** 신 장운영 구분 코드 */
     @get:JsonProperty("NEW_MKOP_CLS_CODE")
-    val newMkopClsCode: String,
+    val newMkopClsCode: String?,
 
     /** 거래정지 여부 */
     @get:JsonProperty("TRHT_YN")
-    val trhtYn: String,
+    val trhtYn: String?,
 
     /** 매도호가 잔량1 */
     @get:JsonProperty("ASKP_RSQN1")
-    val askpRsqn1: String,
+    val askpRsqn1: String?,
 
     /** 매수호가 잔량1 */
     @get:JsonProperty("BIDP_RSQN1")
-    val bidpRsqn1: String,
+    val bidpRsqn1: String?,
 
     /** 총 매도호가 잔량 */
     @get:JsonProperty("TOTAL_ASKP_RSQN")
-    val totalAskpRsqn: String,
+    val totalAskpRsqn: String?,
 
     /** 총 매수호가 잔량 */
     @get:JsonProperty("TOTAL_BIDP_RSQN")
-    val totalBidpRsqn: String,
+    val totalBidpRsqn: String?,
 
     /** 거래량 회전율 */
     @get:JsonProperty("VOL_TNRT")
-    val volTnrt: String,
+    val volTnrt: String?,
 
     /** 전일 동시간 누적 거래량 */
     @get:JsonProperty("PRDY_SMNS_HOUR_ACML_VOL")
-    val prdySmnsHourAcmlVol: String,
+    val prdySmnsHourAcmlVol: String?,
 
     /** 전일 동시간 누적 거래량 비율 */
     @get:JsonProperty("PRDY_SMNS_HOUR_ACML_VOL_RATE")
-    val prdySmnsHourAcmlVolRate: String,
+    val prdySmnsHourAcmlVolRate: String?,
 
     /** 시간 구분 코드 */
     @get:JsonProperty("HOUR_CLS_CODE")
-    val hourClsCode: String,
+    val hourClsCode: String?,
 
     /** 임의종료구분코드 */
     @get:JsonProperty("MRKT_TRTM_CLS_CODE")
-    val mrktTrtmClsCode: String,
+    val mrktTrtmClsCode: String?,
 
     /** 정적VI발동기준가 */
     @get:JsonProperty("VI_STND_PRC")
-    val viStndPrc: String
+    val viStndPrc: String?
 ) {
     fun getTicker(): String {
         return mkscShrnIscd

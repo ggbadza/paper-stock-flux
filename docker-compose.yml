@@ -12,6 +12,7 @@ services:
       MYSQL_DATABASE: webflux
       MYSQL_USER: admin
       MYSQL_PASSWORD: password
+      TZ: Asia/Seoul # 시간대 설정 추가
     volumes:
       - collection-db-data:/var/lib/mysql
 
@@ -22,10 +23,12 @@ services:
     container_name: stock-collection-service
     ports:
       - "8080:8080"
+    environment:
+      TZ: Asia/Seoul # 시간대 설정 추가
     depends_on:
         collection-db:
-            condition: service_started 
-            
+            condition: service_started
+
   relay-app:
     build:
       context: ./stock-relay-service
@@ -33,10 +36,12 @@ services:
     container_name: stock-relay-service
     ports:
       - "8090:8080"
+    environment:
+      TZ: Asia/Seoul # 시간대 설정 추가
     depends_on:
         collection-db:
-            condition: service_started 
-            
+            condition: service_started
+
   persister-db:
       image: timescale/timescaledb:latest-pg14
       container_name: stock-persister-service-db
@@ -46,9 +51,10 @@ services:
         POSTGRES_DB: webflux
         POSTGRES_USER: admin
         POSTGRES_PASSWORD: password
+        TZ: Asia/Seoul # 시간대 설정 추가
       volumes:
-        - persister-db-data:/var/lib/postgresql/data      
-  
+        - persister-db-data:/var/lib/postgresql/data
+
   persister-app:
       build:
         context: ./stock-persister-service
@@ -56,6 +62,8 @@ services:
       container_name: stock-persister-service
       ports:
         - "8100:8080"
+      environment:
+        TZ: Asia/Seoul # 시간대 설정 추가
       depends_on:
         persister-db:
           condition: service_started

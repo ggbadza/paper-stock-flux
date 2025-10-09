@@ -10,7 +10,7 @@ import com.ggbadza.stock_persister_service.nasdaq.dto.NasdaqTradeDto
 import com.ggbadza.stock_persister_service.nasdaq.repository.NasdaqOrderBookRepository
 import com.ggbadza.stock_persister_service.nasdaq.repository.NasdaqTradeRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import jakarta.annotation.PostConstruct
+
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.kafka.receiver.KafkaReceiver
@@ -33,7 +33,6 @@ class StockDataConsumer(
     private val mapper: StockDataMapper
 ) {
 
-    @PostConstruct
     fun startConsumers() {
         consumeKospiTrades()
         consumeKospiOrderBooks()

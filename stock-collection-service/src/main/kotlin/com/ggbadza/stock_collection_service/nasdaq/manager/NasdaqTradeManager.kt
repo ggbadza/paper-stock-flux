@@ -63,7 +63,13 @@ class NasdaqTradeManager(
                 .map { it.ticker }
                 .collectList()
                 .flatMap { tickers ->
-                    if (tickers.isEmpty() || handlers.isEmpty()) {
+                    val dayPrefix = "RBAQ" // 야간 거래
+                    val nightPrefix = "DNAS" // 주간 거래
+                    val fullTickerKeys = tickers.flatMap { ticker ->
+                        listOf("$dayPrefix$ticker", "$nightPrefix$ticker")
+                    }
+
+                    if (fullTickerKeys.isEmpty() || handlers.isEmpty()) {
                         logger.warn { "추적할 활성 NASDAQ 종목이 없거나, 구독 핸들러가 없습니다." }
                         return@flatMap Mono.fromRunnable<Void> { sink.success() }
                     }
@@ -71,7 +77,7 @@ class NasdaqTradeManager(
                     // 2. Approval Key를 가져옴
                     apiKeyManager.getApprovalKey().flatMap { approvalKey ->
                         val uri = URI.create(nasdaqProperties.websocketUrl)
-                        logger.info { "NASDAQ 실시간 데이터 웹소켓 연결을 시작합니다. 구독 종목 수: ${tickers.size}, 핸들러 수: ${handlers.size}" }
+                        logger.info { "NASDAQ 실시간 데이터 웹소켓 연결을 시작합니다. 구독 키 수: ${fullTickerKeys.size}, 핸들러 수: ${handlers.size}" }
 
                         val headers = HttpHeaders()
                         headers.add("approval_key", approvalKey)
@@ -81,11 +87,11 @@ class NasdaqTradeManager(
 
                         // 3. 웹소켓 핸들러 정의
                         val sessionHandler = { session: WebSocketSession ->
-                            val subscriptionMessages = Flux.fromIterable(tickers)
-                                .flatMap { ticker ->
+                            val subscriptionMessages = Flux.fromIterable(fullTickerKeys)
+                                .flatMap { fullKey ->
                                     // 각 핸들러별 요청 생성
                                     Flux.fromIterable(handlers).map { handler ->
-                                        handler.createRequest(approvalKey, ticker)
+                                        handler.createRequest(approvalKey, fullKey)
                                     }
                                 }
                                 .delayElements(Duration.ofSeconds(1))

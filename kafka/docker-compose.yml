@@ -9,7 +9,6 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
     volumes: 
-      - zookeeper_data:/data
       - zookeeper_datalog:/datalog
       
 
@@ -27,15 +26,7 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-    volumes: 
-      - kafka_data:/var/lib/kafka/data
-    command: > 
-      bash -c "
-        echo 'Deleting meta.properties for development...' &&
-        rm -f /var/lib/kafka/data/meta.properties &&
-        /etc/confluent/docker/run
-      "
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
 
 
   kafdrop:
@@ -51,6 +42,4 @@ services:
       
       
 volumes:
-  zookeeper_data:
   zookeeper_datalog:
-  kafka_data:

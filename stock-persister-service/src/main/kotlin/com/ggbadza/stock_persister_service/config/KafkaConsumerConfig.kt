@@ -9,6 +9,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper
 import org.springframework.kafka.support.serializer.JsonDeserializer
 import reactor.kafka.receiver.KafkaReceiver
 import reactor.kafka.receiver.ReceiverOptions
@@ -31,6 +32,7 @@ class KafkaConsumerConfig(
     @Value("\${spring.kafka.consumer.group-id}")
     private lateinit var groupId: String
 
+
     // Kospi 체결가 토픽을 위한 KafkaReceiver 빈
     @Bean
     fun kospiKafkaTradeReceiver(): KafkaReceiver<String, KospiTradeDto> {
@@ -40,7 +42,10 @@ class KafkaConsumerConfig(
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to JsonDeserializer::class.java,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest", // 처음 실행 시 가장 오래된 메시지부터 소비
-            JsonDeserializer.TRUSTED_PACKAGES to "com.ggbadza.stock_collection_service.kospi.dto"
+            // 전체 패키지를 다 받아와서 지정한 DTO로 변경 처리(실 서비스에서는 스키마 레지스트리 사용)
+            JsonDeserializer.TRUSTED_PACKAGES to "*",
+            JsonDeserializer.VALUE_DEFAULT_TYPE to KospiTradeDto::class.java,
+            JsonDeserializer.USE_TYPE_INFO_HEADERS to false
         )
 
         // 구독할 토픽 지정
@@ -59,7 +64,9 @@ class KafkaConsumerConfig(
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to JsonDeserializer::class.java,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest", // 처음 실행 시 가장 오래된 메시지부터 소비
-            JsonDeserializer.TRUSTED_PACKAGES to "com.ggbadza.stock_collection_service.kospi.dto"
+            JsonDeserializer.TRUSTED_PACKAGES to "*",
+            JsonDeserializer.VALUE_DEFAULT_TYPE to KospiOrderBookDto::class.java,
+            JsonDeserializer.USE_TYPE_INFO_HEADERS to false
         )
 
         // 구독할 토픽 지정
@@ -79,7 +86,9 @@ class KafkaConsumerConfig(
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to JsonDeserializer::class.java,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest", // 처음 실행 시 가장 오래된 메시지부터 소비
-            JsonDeserializer.TRUSTED_PACKAGES to "com.ggbadza.stock_collection_service.nasdaq.dto"
+            JsonDeserializer.TRUSTED_PACKAGES to "*",
+            JsonDeserializer.VALUE_DEFAULT_TYPE to NasdaqTradeDto::class.java,
+            JsonDeserializer.USE_TYPE_INFO_HEADERS to false
         )
 
         // 구독할 토픽 지정
@@ -98,7 +107,9 @@ class KafkaConsumerConfig(
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to JsonDeserializer::class.java,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest", // 처음 실행 시 가장 오래된 메시지부터 소비
-            JsonDeserializer.TRUSTED_PACKAGES to "com.ggbadza.stock_collection_service.nasdaq.dto"
+            JsonDeserializer.TRUSTED_PACKAGES to "*",
+            JsonDeserializer.VALUE_DEFAULT_TYPE to NasdaqOrderBookDto::class.java,
+            JsonDeserializer.USE_TYPE_INFO_HEADERS to false
         )
 
         // 구독할 토픽 지정

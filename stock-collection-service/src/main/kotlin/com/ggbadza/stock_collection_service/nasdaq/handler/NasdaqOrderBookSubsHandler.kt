@@ -20,7 +20,7 @@ class NasdaqOrderBookSubsHandler(
         return """
                 {
                     "header": {"approval_key":"$approvalKey","custtype":"P","tr_type":"1","content-type":"utf-8"},
-                    "body": {"input":{"tr_id":"${getTrId()}","tr_key":"DNAS$ticker"}}
+                    "body": {"input":{"tr_id":"${getTrId()}","tr_key":"$ticker"}}
                 }
                 """.trimIndent()
     }
